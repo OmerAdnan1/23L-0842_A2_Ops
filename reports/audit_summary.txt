@@ -1,0 +1,35 @@
+=== Images per class (all files found) ===
+class
+AiArtData    539
+
+=== Min / median / max per class (readable images) ===
+          width               height              file_size_kb                 
+            min  median   max    min median   max          min  median      max
+class                                                                          
+AiArtData   225  1024.0  6000    135  800.0  4001        11.46  195.08  5494.32
+
+=== Same stats, whole dataset ===
+         width  height  file_size_kb
+min      225.0   135.0         11.46
+median  1024.0   800.0        195.08
+max     6000.0  4001.0       5494.32
+
+=== Colour modes per class ===
+mode       L   P  RGB  RGBA
+class                      
+AiArtData  1  14  489    35
+
+=== Formats per class ===
+format     JPEG  PNG
+class               
+AiArtData   429  110
+
+=== Corrupt / unreadable files: 0 ===
+
+=== Exact duplicates ===
+Duplicate groups: 1
+Redundant extra copies (removable): 1
+Groups spanning BOTH classes (label conflict): 0
+Redundant copies per class:
+class
+AiArtData    1
