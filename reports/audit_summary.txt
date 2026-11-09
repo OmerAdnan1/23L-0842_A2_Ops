@@ -1,28 +1,32 @@
 === Images per class (all files found) ===
 class
 AiArtData    539
+RealArt      436
 
 === Min / median / max per class (readable images) ===
-          width               height              file_size_kb                 
-            min  median   max    min median   max          min  median      max
-class                                                                          
-AiArtData   225  1024.0  6000    135  800.0  4001        11.46  195.08  5494.32
+          width               height              file_size_kb                  
+            min  median   max    min median   max          min   median      max
+class                                                                           
+AiArtData   225  1024.0  6000    135  800.0  4001        11.46  195.080  5494.32
+RealArt     183   920.0  8495    158  720.0  7091        11.05  141.445  9956.40
 
 === Same stats, whole dataset ===
          width  height  file_size_kb
-min      225.0   135.0         11.46
-median  1024.0   800.0        195.08
-max     6000.0  4001.0       5494.32
+min      183.0   135.0         11.05
+median  1024.0   768.0        165.13
+max     8495.0  7091.0       9956.40
 
 === Colour modes per class ===
 mode       L   P  RGB  RGBA
 class                      
 AiArtData  1  14  489    35
+RealArt    6   9  407    14
 
 === Formats per class ===
 format     JPEG  PNG
 class               
 AiArtData   429  110
+RealArt     403   33
 
 === Corrupt / unreadable files: 0 ===
 
