@@ -1,0 +1,11 @@
+id,path,class,label,prob,pred,width,height,file_size_kb,mode,format,hypothesis
+1,RealArt/_MG_5812.jpg,RealArt,0,0.9783981,1,2500,1667,870.04,RGB,JPEG,
+2,RealArt/images108.jpg,RealArt,0,0.92014086,1,300,168,11.93,RGB,JPEG,
+3,RealArt/Two-girlfriends-students-on-a-coffee-break-outdoors-1296x728-header-1296x728.jpg,RealArt,0,0.8252561,1,1296,728,179.64,RGB,JPEG,
+4,RealArt/Tiger-1.jpg,RealArt,0,0.82120824,1,1920,1080,396.49,RGB,JPEG,
+5,AiArtData/240201-airec-main-ksp-5625e8.jpg,AiArtData,1,0.03319015,0,760,380,180.0,RGB,JPEG,
+6,AiArtData/ath-flowers-vivid-colors-generative-ai-landscape-painting-mountain-281590810.jpg,AiArtData,1,0.104323156,0,897,1690,250.26,RGB,JPEG,
+7,AiArtData/midjourney-putin.jpg,AiArtData,1,0.10794738,0,1024,576,375.75,RGB,JPEG,
+8,AiArtData/3e9bc32a-1d77-4f0a-b0df-199c80060385-1024x1024.jpg,AiArtData,1,0.12411731,0,1024,1024,112.13,RGB,JPEG,
+9,AiArtData/Group_12467.jpg,AiArtData,1,0.12468837,0,1548,776,90.75,RGB,JPEG,
+10,AiArtData/chayka_ai_copyright.jpg,AiArtData,1,0.17347136,0,1500,1500,637.91,RGB,JPEG,
