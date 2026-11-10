@@ -1,0 +1,5 @@
+model,rule,threshold,accuracy,precision,recall,f1,roc_auc,fpr_real_called_ai,fnr_ai_called_real
+baseline,val FPR<=0.1,0.6912,0.6531,0.875,0.4321,0.5785,0.7725,0.0758,0.5679
+baseline,fixed 0.5,0.5,0.7483,0.75,0.8148,0.7811,0.7725,0.3333,0.1852
+transfer_stage2,val FPR<=0.1,0.8018,0.7551,0.9245,0.6049,0.7313,0.8618,0.0606,0.3951
+transfer_stage2,fixed 0.5,0.5,0.7483,0.7683,0.7778,0.773,0.8618,0.2879,0.2222
