@@ -35,6 +35,47 @@ def build_baseline_cnn(img_size=IMG_SIZE, filters=(32, 64, 128, 256), dropout=0.
     return keras.Model(inputs, outputs, name="baseline_cnn")
 
 
+def build_transfer(img_size=IMG_SIZE, dropout=0.3):
+    """MobileNetV2 (ImageNet) without its classifier, frozen, plus our own head.
+
+    Rescaling(1/127.5, offset=-1) is exactly mobilenet_v2.preprocess_input
+    (0-255 -> -1..1), but serialisable. The base is called with training=False
+    so its BatchNorm layers stay in inference mode, also when fine-tuning.
+    """
+    base = keras.applications.MobileNetV2(input_shape=(img_size, img_size, 3),
+                                          include_top=False, weights="imagenet")
+    base.trainable = False
+
+    inputs = keras.Input(shape=(img_size, img_size, 3), name="image")
+    x = layers.Rescaling(1.0 / 127.5, offset=-1.0, name="mobilenet_preprocess")(inputs)
+    x = base(x, training=False)
+    x = layers.GlobalAveragePooling2D(name="gap")(x)
+    x = layers.Dropout(dropout, name="dropout")(x)
+    outputs = layers.Dense(1, activation="sigmoid", name="p_ai")(x)
+    return keras.Model(inputs, outputs, name="mobilenetv2_transfer"), base
+
+
+def unfreeze_from(base, start="block_16_expand"):
+    """Unfreeze `start` and every later layer of the base, BatchNorm excluded."""
+    base.trainable = True
+    names = [l.name for l in base.layers]
+    cut = names.index(start)
+    for i, l in enumerate(base.layers):
+        l.trainable = i >= cut and not isinstance(l, layers.BatchNormalization)
+
+
+def trainable_layers(model):
+    """Names of every layer (nested ones included) that has trainable weights."""
+    out = []
+    for l in model.layers:
+        sub = getattr(l, "layers", None)
+        if sub:
+            out += [f"{l.name}/{s.name}" for s in sub if s.trainable_weights]
+        elif l.trainable_weights:
+            out.append(l.name)
+    return out
+
+
 def compile_model(model, lr):
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=lr),
