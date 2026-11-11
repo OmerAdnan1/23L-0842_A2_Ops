@@ -64,6 +64,14 @@ def unfreeze_from(base, start="block_16_expand"):
         l.trainable = i >= cut and not isinstance(l, layers.BatchNormalization)
 
 
+def unfreeze_last_blocks(base, n):
+    """Unfreeze the last n inverted-residual blocks (16 is the last) plus Conv_1."""
+    if n == 0:
+        base.trainable = False
+    else:
+        unfreeze_from(base, f"block_{17 - n}_expand")
+
+
 def trainable_layers(model):
     """Names of every layer (nested ones included) that has trainable weights."""
     out = []
