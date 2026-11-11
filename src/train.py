@@ -1,22 +1,24 @@
 """
-Task 2.3 / 2.4 - Train a VisionGuard model with fixed seeds and standard callbacks.
+Task 2.3 / 2.4 / 3.3-3.5 - Train a VisionGuard model with fixed seeds and
+standard callbacks, optionally tracked with MLflow.
 
 Callbacks: EarlyStopping (val_loss, restores best weights), ModelCheckpoint
 (best val_loss only), ReduceLROnPlateau, CSVLogger.
 
 baseline: one stage.
 transfer: stage 1 trains the head on a frozen MobileNetV2, stage 2 unfreezes
-the last block and continues with a much smaller learning rate.
+the last --unfreeze-blocks blocks and continues with a much smaller learning rate.
 
-Outputs per stage: models/<name>.keras, reports/<name>_history.csv,
-reports/figures/<name>_curves.png; for transfer also
-reports/<name>_trainable.txt.
+--track manual|autolog logs the run to MLflow (see src/tracking.py) and, at the
+end, picks a threshold on validation and logs test metrics and artifacts.
 
 Usage:
     python src/train.py --model baseline --epochs 40 --lr 1e-3
-    python src/train.py --model transfer --epochs 20 --lr 1e-3 --ft-epochs 20 --ft-lr 1e-5
+    python src/train.py --model transfer --epochs 40 --ft-epochs 40
+    python src/train.py --model transfer --track manual --name tl_ref
 """
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 
 import matplotlib
@@ -26,9 +28,9 @@ import numpy as np
 import pandas as pd
 from tensorflow import keras
 
-from data import SEED, get_datasets
+from data import IMG_SIZE, SEED, get_datasets
 from models import (build_baseline_cnn, build_transfer, compile_model,
-                    trainable_layers, unfreeze_from)
+                    trainable_layers, unfreeze_last_blocks)
 
 
 def make_callbacks(ckpt_path, log_path, patience=8):
@@ -63,17 +65,18 @@ def plot_curves(hist, title, out_path):
     return best + 1
 
 
-def run_stage(model, train, val, name, lr, epochs):
+def run_stage(model, train, val, name, lr, epochs, extra_callbacks=()):
     compile_model(model, lr)
     model.fit(train, validation_data=val, epochs=epochs,
               callbacks=make_callbacks(f"models/{name}.keras",
-                                       f"reports/{name}_history.csv"))
+                                       f"reports/{name}_history.csv") + list(extra_callbacks))
 
     hist = pd.read_csv(f"reports/{name}_history.csv")
     best = plot_curves(hist, f"{name} (lr={lr})", f"reports/figures/{name}_curves.png")
     row = hist.iloc[best - 1]
     print(f"\n[{name}] best epoch: {best}/{len(hist)} | val_loss {row.val_loss:.4f} | "
           f"val_accuracy {row.val_accuracy:.4f} | val_auc {row.val_auc:.4f}\n")
+    return hist, best
 
 
 def save_trainable(model, name):
@@ -84,39 +87,69 @@ def save_trainable(model, name):
     print("  " + "\n  ".join(names))
 
 
+def build_stages(args, name):
+    """The model plus a list of (stage_name, lr, epochs, prepare_fn)."""
+    kw = {"img_size": args.img_size}
+    if args.dropout is not None:
+        kw["dropout"] = args.dropout
+    if args.model == "baseline":
+        return build_baseline_cnn(**kw), [(name, args.lr, args.epochs, lambda: None)]
+    model, base = build_transfer(**kw)
+    return model, [
+        (f"{name}_stage1", args.lr, args.epochs, lambda: None),
+        (f"{name}_stage2", args.ft_lr, args.ft_epochs,
+         lambda: unfreeze_last_blocks(base, args.unfreeze_blocks)),
+    ]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", choices=["baseline", "transfer"], default="baseline")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--dropout", type=float, default=None)
-    ap.add_argument("--ft-epochs", type=int, default=20)
+    ap.add_argument("--ft-epochs", type=int, default=40)
     ap.add_argument("--ft-lr", type=float, default=1e-5)
-    ap.add_argument("--unfreeze-from", default="block_16_expand")
+    ap.add_argument("--unfreeze-blocks", type=int, default=1)
+    ap.add_argument("--img-size", type=int, default=IMG_SIZE)
+    ap.add_argument("--no-augment", action="store_true")
     ap.add_argument("--splits", default="splits")
     ap.add_argument("--root", default="data/raw")
     ap.add_argument("--name", default=None, help="run name, defaults to --model")
+    ap.add_argument("--track", choices=["none", "manual", "autolog"], default="none")
+    ap.add_argument("--max-fpr", type=float, default=0.10)
     args = ap.parse_args()
 
     name = args.name or args.model
     keras.utils.set_random_seed(SEED)
-    train, val, _ = get_datasets(args.splits, args.root)
+    train, val, _ = get_datasets(args.splits, args.root, args.img_size,
+                                 augment=not args.no_augment)
     Path("models").mkdir(exist_ok=True)
     Path("reports/figures").mkdir(parents=True, exist_ok=True)
-    kw = {} if args.dropout is None else {"dropout": args.dropout}
+    model, stages = build_stages(args, name)
 
-    if args.model == "baseline":
-        model = build_baseline_cnn(**kw)
-        run_stage(model, train, val, name, args.lr, args.epochs)
-        return
+    tracker = None
+    if args.track != "none":
+        from tracking import Tracker
+        tracker = Tracker(args.track, name)
 
-    model, base = build_transfer(**kw)
-    save_trainable(model, f"{name}_stage1")
-    run_stage(model, train, val, f"{name}_stage1", args.lr, args.epochs)
+    with tracker.run(vars(args), SEED) if tracker else nullcontext():
+        for stage, lr, epochs, prepare in stages:
+            prepare()
+            save_trainable(model, stage)
+            with tracker.stage(stage) if tracker else nullcontext():
+                hist, best = run_stage(model, train, val, stage, lr, epochs,
+                                       tracker.callbacks() if tracker else ())
+            if tracker:
+                tracker.after_stage(stage, hist, best)
 
-    unfreeze_from(base, args.unfreeze_from)
-    save_trainable(model, f"{name}_stage2")
-    run_stage(model, train, val, f"{name}_stage2", args.ft_lr, args.ft_epochs)
+        if tracker:
+            from evaluate import predict
+            splits = Path(args.splits)
+            tracker.finish(model, f"models/{stages[-1][0]}.keras",
+                           predict(model, splits / "val.csv", args.root, args.img_size),
+                           predict(model, splits / "test.csv", args.root, args.img_size),
+                           hist.iloc[best - 1], args.max_fpr)
 
 
 if __name__ == "__main__":

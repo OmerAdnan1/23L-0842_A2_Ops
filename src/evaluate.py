@@ -28,12 +28,12 @@ from sklearn.metrics import (ConfusionMatrixDisplay, accuracy_score, confusion_m
                              roc_curve)
 from tensorflow import keras
 
-from data import build_dataset
+from data import IMG_SIZE, build_dataset
 
 
-def predict(model, csv_path, root):
+def predict(model, csv_path, root, img_size=IMG_SIZE):
     df = pd.read_csv(csv_path)
-    ds = build_dataset(csv_path, root, training=False)
+    ds = build_dataset(csv_path, root, training=False, img_size=img_size)
     df["prob"] = model.predict(ds, verbose=0).ravel()
     return df
 
@@ -60,6 +60,32 @@ def scores(y, p, t):
             "fnr_ai_called_real": fn / (fn + tp)}
 
 
+def plot_roc(curves, out_path):
+    """curves: list of (name, y_true, p_ai)."""
+    fig, ax = plt.subplots(figsize=(6, 6))
+    for name, y, p in curves:
+        fpr, tpr, _ = roc_curve(y, p)
+        ax.plot(fpr, tpr, label=f"{name} (AUC {roc_auc_score(y, p):.3f})")
+    ax.plot([0, 1], [0, 1], "k--", lw=1)
+    ax.set_xlabel("False positive rate (real called AI)")
+    ax.set_ylabel("True positive rate (AI caught)")
+    ax.set_title("ROC - test set")
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_cm(y, pred, title, out_path):
+    fig, ax = plt.subplots(figsize=(4.5, 4))
+    ConfusionMatrixDisplay(confusion_matrix(y, pred, labels=[0, 1]),
+                           display_labels=["Real", "AI"]).plot(ax=ax, colorbar=False)
+    ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="+", default=["baseline", "transfer_stage2"])
@@ -72,13 +98,12 @@ def main():
     Path("reports/predictions").mkdir(parents=True, exist_ok=True)
     Path("reports/figures").mkdir(parents=True, exist_ok=True)
 
-    rows, thresholds = [], {}
-    fig_roc, ax_roc = plt.subplots(figsize=(6, 6))
-
+    rows, thresholds, curves = [], {}, []
     for name in args.models:
         model = keras.models.load_model(f"models/{name}.keras")
-        val = predict(model, splits / "val.csv", args.root)
-        test = predict(model, splits / "test.csv", args.root)
+        img_size = model.input_shape[1]
+        val = predict(model, splits / "val.csv", args.root, img_size)
+        test = predict(model, splits / "test.csv", args.root, img_size)
 
         th = pick_threshold(val["label"], val["prob"], args.max_fpr)
         thresholds[name] = th
@@ -92,26 +117,11 @@ def main():
 
         test["pred"] = (p >= t).astype(int)
         test.to_csv(f"reports/predictions/{name}_test.csv", index=False)
+        curves.append((name, y, p))
+        plot_cm(y, test["pred"], f"{name} - test, threshold {t:.2f}",
+                f"reports/figures/cm_{name}.png")
 
-        fpr, tpr, _ = roc_curve(y, p)
-        ax_roc.plot(fpr, tpr, label=f"{name} (AUC {roc_auc_score(y, p):.3f})")
-
-        fig_cm, ax_cm = plt.subplots(figsize=(4.5, 4))
-        ConfusionMatrixDisplay(confusion_matrix(y, test["pred"], labels=[0, 1]),
-                               display_labels=["Real", "AI"]).plot(ax=ax_cm, colorbar=False)
-        ax_cm.set_title(f"{name} - test, threshold {t:.2f}")
-        fig_cm.tight_layout()
-        fig_cm.savefig(f"reports/figures/cm_{name}.png", dpi=150)
-        plt.close(fig_cm)
-
-    ax_roc.plot([0, 1], [0, 1], "k--", lw=1)
-    ax_roc.set_xlabel("False positive rate (real called AI)")
-    ax_roc.set_ylabel("True positive rate (AI caught)")
-    ax_roc.set_title("ROC - test set")
-    ax_roc.legend(loc="lower right")
-    fig_roc.tight_layout()
-    fig_roc.savefig("reports/figures/roc_test.png", dpi=150)
-
+    plot_roc(curves, "reports/figures/roc_test.png")
     df = pd.DataFrame(rows).round(4)
     df.to_csv("reports/test_metrics.csv", index=False)
     Path("reports/test_metrics.md").write_text(df.to_markdown(index=False))

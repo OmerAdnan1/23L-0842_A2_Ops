@@ -35,19 +35,24 @@ def make_augmenter(seed=SEED):
     ], name="augmentation")
 
 
-def _load(path, label, root, img_size):
-    raw = tf.io.read_file(tf.strings.join([root, path], "/"))
+def decode_resize(raw, img_size=IMG_SIZE):
+    """Encoded bytes -> uint8 RGB (img_size, img_size, 3). Mirrored by app/inference.py."""
     # channels=3: RGBA drops alpha, grayscale/palette become RGB
     img = tf.io.decode_image(raw, channels=3, expand_animations=False)
     img.set_shape([None, None, 3])
     # plain resize (squashes aspect ratio); antialias avoids aliasing on big images
     img = tf.image.resize(img, [img_size, img_size], antialias=True)
-    img = tf.cast(tf.clip_by_value(tf.round(img), 0, 255), tf.uint8)
-    return img, tf.cast(label, tf.float32)
+    return tf.cast(tf.clip_by_value(tf.round(img), 0, 255), tf.uint8)
+
+
+def _load(path, label, root, img_size):
+    raw = tf.io.read_file(tf.strings.join([root, path], "/"))
+    return decode_resize(raw, img_size), tf.cast(label, tf.float32)
 
 
 def build_dataset(csv_path, root, training, img_size=IMG_SIZE,
-                  batch_size=BATCH_SIZE, seed=SEED):
+                  batch_size=BATCH_SIZE, seed=SEED, augment=None):
+    augment = training if augment is None else augment
     df = pd.read_csv(csv_path)
     ds = tf.data.Dataset.from_tensor_slices((df["path"].values, df["label"].values))
     ds = ds.map(lambda p, y: _load(p, y, root, img_size), num_parallel_calls=AUTOTUNE)
@@ -56,16 +61,16 @@ def build_dataset(csv_path, root, training, img_size=IMG_SIZE,
         ds = ds.shuffle(len(df), seed=seed, reshuffle_each_iteration=True)
     ds = ds.batch(batch_size)
     ds = ds.map(lambda x, y: (tf.cast(x, tf.float32), y), num_parallel_calls=AUTOTUNE)
-    if training:
+    if augment:
         aug = make_augmenter(seed)
         ds = ds.map(lambda x, y: (aug(x, training=True), y), num_parallel_calls=AUTOTUNE)
     return ds.prefetch(AUTOTUNE)
 
 
 def get_datasets(splits_dir="splits", root="data/raw", img_size=IMG_SIZE,
-                 batch_size=BATCH_SIZE):
+                 batch_size=BATCH_SIZE, augment=True):
     d = Path(splits_dir)
-    return (build_dataset(d / "train.csv", root, True, img_size, batch_size),
+    return (build_dataset(d / "train.csv", root, True, img_size, batch_size, augment=augment),
             build_dataset(d / "val.csv", root, False, img_size, batch_size),
             build_dataset(d / "test.csv", root, False, img_size, batch_size))
 
