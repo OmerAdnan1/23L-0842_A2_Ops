@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Upload{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Is this image AI-generated?</h1>
+  <p class="muted">Upload a JPG or PNG image (max {{ max_mb }} MB). The image is analysed in memory and never stored.</p>
+  <form action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data" class="upload">
+    <input type="file" name="image" accept=".jpg,.jpeg,.png" required>
+    <button type="submit">Analyse image</button>
+  </form>
+</section>
+{% endblock %}

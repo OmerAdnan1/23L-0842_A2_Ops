@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Result{% endblock %}
+{% block content %}
+<section class="card result">
+  <img class="preview" src="{{ preview }}" alt="{{ record.filename }}">
+  <div>
+    <p class="muted">{{ record.filename }}</p>
+    <h1 class="verdict {{ 'ai' if v.label == 'AI-generated' else 'real' }}">{{ v.label }}</h1>
+    <p>Confidence: <strong>{{ '%.1f' % (v.confidence * 100) }}%</strong></p>
+    <div class="meter" title="P(AI) = {{ '%.3f' % v.p_ai }}">
+      <span style="width: {{ '%.1f' % (v.p_ai * 100) }}%"></span>
+      <i style="left: {{ '%.1f' % (v.threshold * 100) }}%"></i>
+    </div>
+    <p class="small">P(AI) = {{ '%.3f' % v.p_ai }} · decision threshold {{ '%.2f' % v.threshold }} ·
+      model {{ record.model_name }} · {{ '%.0f' % record.latency_ms }} ms</p>
+    {% if v.uncertain %}
+    <p class="note">The score is above 0.5 but below the threshold: the model leans towards AI but is not confident enough to say so.</p>
+    {% endif %}
+    <div class="caveat">
+      <strong>Please read:</strong> this is a statistical guess, not proof. On our test set about
+      6% of real photos were wrongly flagged as AI and about 40% of AI images were missed.
+      "Real" means "no strong evidence of AI", and paintings, heavily edited photos or very small
+      images are often misjudged. Do not use this result alone to accuse anyone.
+    </div>
+    <a class="button" href="{{ url_for('index') }}">Analyse another image</a>
+  </div>
+</section>
+{% endblock %}
