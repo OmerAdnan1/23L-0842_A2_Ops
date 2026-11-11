@@ -11,5 +11,12 @@ wheels/
 
 .env
 
-mlflow_toy.db
+*.db
 mlruns/
+mlartifacts/
+models/*
+!models/.gitignore
+!models/*.dvc
+!models/champion.json
+tuner_runs/
+reports/mlflow/
