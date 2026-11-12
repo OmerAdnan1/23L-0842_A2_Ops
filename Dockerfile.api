@@ -1,0 +1,29 @@
+# VisionGuard model API for the cloud (Task 7).
+# The champion model is built into the image: the service is immutable and needs
+# no volume or DagsHub access at runtime. Build after `python src/registry.py export`.
+FROM python:3.11-slim
+
+ARG TF_PACKAGE=tensorflow-cpu
+ARG TF_VERSION=2.21.0
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TF_CPP_MIN_LOG_LEVEL=2 \
+    MODEL_PATH=/app/models/champion.keras \
+    PORT=8080
+
+WORKDIR /app
+COPY requirements-api.txt .
+RUN pip install -r requirements-api.txt "${TF_PACKAGE}==${TF_VERSION}"
+
+RUN useradd --create-home --uid 1000 appuser
+COPY models/champion.keras models/champion.keras
+COPY app/__init__.py app/config.py app/verdict.py app/validation.py \
+     app/inference.py app/api.py app/
+USER appuser
+
+EXPOSE 8080
+CMD exec gunicorn --bind 0.0.0.0:${PORT} --workers 1 --threads 4 --timeout 120 \
+    --access-logfile - "app.api:create_api()"
