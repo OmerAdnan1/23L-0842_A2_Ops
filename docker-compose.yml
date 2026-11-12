@@ -1,0 +1,45 @@
+# VisionGuard stack (Task 6.3): web app + PostgreSQL.
+# Secrets are interpolated from the untracked .env file (see .env.example).
+name: vg-23l-0842-a2-ops
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # no "ports:" on purpose - reachable only as db:5432 inside the compose network
+
+  web:
+    build: .
+    image: visionguard-web:latest
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MODEL_PATH: /app/models/champion.keras
+      MODEL_NAME: ${MODEL_NAME:-champion}
+      THRESHOLD: ${THRESHOLD:-0.80}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      INFERENCE_MODE: ${INFERENCE_MODE:-local}
+      MODEL_API_URL: ${MODEL_API_URL:-}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+    volumes:
+      - ./models:/app/models:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
