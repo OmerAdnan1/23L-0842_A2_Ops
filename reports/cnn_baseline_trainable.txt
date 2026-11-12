@@ -1,0 +1,9 @@
+block1_conv
+block1_bn
+block2_conv
+block2_bn
+block3_conv
+block3_bn
+block4_conv
+block4_bn
+p_ai
